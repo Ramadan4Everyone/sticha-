@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sticha-pwa-v5';
+const CACHE_NAME = 'sticha-pwa-v7';
 const RUNTIME_CACHE = 'sticha-runtime-v1';
 const SUPABASE_LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
 const APP_SHELL = [
