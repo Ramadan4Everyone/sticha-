@@ -261,6 +261,7 @@
         }
       }
       localStorage.removeItem(pendingSyncKey()||'');
+      gsSyncSoon();
       settings.cloudStatus='Synced'; settings.lastSync=new Date().toISOString(); saveSettings();
       await idbSet(userStorageKey(),customers);
       try{localStorage.setItem(userStorageKey(),JSON.stringify(customers));}catch{}
@@ -375,7 +376,7 @@
     $('#startDate').value=localDateInputValue(); $('#deliveryDate').value=localDateInputValue(new Date(Date.now()+7*86400000));
     $('#price').value=''; $('#paid').value=''; $('#orderStatus').value='In progress'; $('#fabricWidth').value='45'; $('#includeTrouser').checked=false; $('#measurementGender').value='Female';
     $('#photoPreview').style.backgroundImage=''; $('#photoPreview').classList.remove('has-photo'); delete $('#photoPreview').dataset.photo; delete $('#photoPreview').dataset.photoRemoved;
-    currentTemplate='dress'; $$('.template').forEach(b=>b.classList.toggle('active',b.dataset.template==='dress')); renderFields();
+    currentTemplate='dress'; $$('.template').forEach(b=>b.classList.toggle('active',b.dataset.template==='dress')); renderStyleOptions('Female'); renderFields();
     $('#formTitle').textContent='Add customer'; $('#formSubtitle').textContent='Create a profile, then save their measurements.';
   }
 
@@ -551,8 +552,8 @@
 
   function showView(name){if(name!=='login'&&!currentUser){name='login';}$$('.view').forEach(v=>v.classList.remove('active'));const target=$(`#view-${name}`);if(!target)return;target.classList.add('active');$$('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===name));window.scrollTo({top:0,behavior:'smooth'});if(name==='customers')renderCustomers($('#searchInput')?.value||'');if(name==='business')renderBusinessCentre();if(name==='dashboard'){refreshUI();checkDeliveryReminders();}if(name==='calculator')calcOnShow();saveUIState({scrollY:0});}
 
-  function editProfile(){if(!selectedCustomer)return;showView('add');$('#formTitle').textContent='Edit customer';$('#formSubtitle').textContent='Update details or save a new measurement set.';const c=selectedCustomer;$('#customerName').value=c.name;$('#customerPhone').value=c.phone||'';$('#customerGender').value=c.gender||'Female';$('#customerCategory').value=c.category||'Dress / Gown'; if(!$('#customerCategory').value)$('#customerCategory').value='Custom';$('#customerNotes').value=c.notes||'';$('#startDate').value=c.startDate||localDateInputValue();$('#deliveryDate').value=c.deliveryDate||'';$('#price').value=c.price||'';$('#paid').value=paymentTotal(c)||'';$('#orderStatus').value=c.status||'In progress';$('#fabricWidth').value=c.fabricWidth||45;$('#measurementGender').value=c.gender||'Female';$('#includeTrouser').checked=Object.keys(c.measurements||{}).some(k=>/Trouser|Lap|Ankle|Thigh/i.test(k));$('#customerForm').dataset.editingId=c.id;currentUnit=c.unit||'in';currentTemplate=templateForCategory(c.category);$$('.template').forEach(b=>b.classList.toggle('active',b.dataset.template===currentTemplate));renderFields(c);{const pv=$('#photoPreview');pv.style.backgroundImage='';pv.classList.remove('has-photo');delete pv.dataset.photo;delete pv.dataset.photoRemoved;const pi=$('#customerPhoto');if(pi)pi.value='';}if(c.photo){$('#photoPreview').dataset.photo=c.photo;$('#photoPreview').style.backgroundImage=`url("${c.photo}")`;$('#photoPreview').classList.add('has-photo');}}
-  function templateForCategory(category){const x=String(category||'').toLowerCase();if(x.includes('trouser'))return 'trouser';if(x.includes('shirt'))return 'shirt';if(x.includes('native')||x.includes('two-piece'))return 'native';if(x.includes('agbada'))return 'agbada';return 'dress';}
+  function editProfile(){if(!selectedCustomer)return;showView('add');setAddMode('single');$('#formTitle').textContent='Edit customer';$('#formSubtitle').textContent='Update details or save a new measurement set.';const c=selectedCustomer;$('#customerName').value=c.name;$('#customerPhone').value=c.phone||'';$('#customerGender').value=c.gender||'Female';renderStyleOptions(c.gender||'Female',c.category||'Dress / Gown');$('#customerCategory').value=c.category||'Dress / Gown'; if(!$('#customerCategory').value)$('#customerCategory').value='Custom';$('#customerNotes').value=c.notes||'';$('#startDate').value=c.startDate||localDateInputValue();$('#deliveryDate').value=c.deliveryDate||'';$('#price').value=c.price||'';$('#paid').value=paymentTotal(c)||'';$('#orderStatus').value=c.status||'In progress';$('#fabricWidth').value=c.fabricWidth||45;$('#measurementGender').value=c.gender||'Female';$('#includeTrouser').checked=Object.keys(c.measurements||{}).some(k=>/Trouser|Lap|Ankle|Thigh/i.test(k));$('#customerForm').dataset.editingId=c.id;currentUnit=c.unit||'in';currentTemplate=templateForCategory(c.category);$$('.template').forEach(b=>b.classList.toggle('active',b.dataset.template===currentTemplate));renderFields(c);{const pv=$('#photoPreview');pv.style.backgroundImage='';pv.classList.remove('has-photo');delete pv.dataset.photo;delete pv.dataset.photoRemoved;const pi=$('#customerPhoto');if(pi)pi.value='';}if(c.photo){$('#photoPreview').dataset.photo=c.photo;$('#photoPreview').style.backgroundImage=`url("${c.photo}")`;$('#photoPreview').classList.add('has-photo');}}
+  function templateForCategory(category){const x=baseCategoryKey(category);if(x.includes('trouser'))return 'trouser';if(x.includes('shirt'))return 'shirt';if(x.includes('native')||x.includes('two-piece'))return 'native';if(x.includes('agbada'))return 'agbada';return 'dress';}
 
   function numericMeasurements(measurements={}){
     return Object.fromEntries(Object.entries(measurements||{}).map(([k,v])=>[k,Number(String(v).replace(/[^0-9.]/g,''))||0]));
@@ -561,7 +562,7 @@
     const m=numericMeasurements(c.measurements||{});
     const width=Number(c.fabricWidth)||45;
     const g=String(c.gender||'Female');
-    const cat=String(c.category||'').toLowerCase();
+    const cat=baseCategoryKey(c.category);
     const full=m['Full Length']||m['Agbada Length']||m['Length']||m['Top Length']||m['Shirt Length']||0;
     const hip=m.Hip||m.Chest||m.Bust||m['Waist / Stomach']||0;
     const sleeve=m['Sleeve Length']||m.Sleeve||0;
@@ -593,7 +594,7 @@
     } else {
       yards=(width<=45?3.0:2.4)+(g==='Female'&&full>50?.5:0); label='Custom garment';
     }
-    return {yards:Math.max(.5,Math.ceil(yards*2)/2),label,width,confidence};
+    return {yards:Math.max(.5,Math.ceil(yards*2)/2),label:styleDisplayLabel(c.category)||label,width,confidence};
   }
   function draftCustomerForFabric(){
     const {measurements,customMeasurements}=collectMeasurements();
@@ -854,6 +855,7 @@
         onboardingCheck();
       }).catch(e=>{ console.warn('STICHA cloud load skipped:',e); onboardingCheck(); });
       if(hasPendingSync()) syncCloudData().then(()=>refreshUI()).catch(e=>console.warn('STICHA background sync skipped:',e));
+      gsSyncSoon();
     }
   }
 
@@ -1125,6 +1127,7 @@
     $('#customerName').value=s.name||''; $('#customerPhone').value=s.phone||'';
     const g=['Female','Male','Other'].includes(s.gender)?s.gender:'Female';
     $('#customerGender').value=g;
+    renderStyleOptions(g,s.category);
     $('#measurementGender').value=(s.measGender!==undefined&&s.measGender!==null)?s.measGender:(g==='Other'?'':g);
     if([...$('#customerCategory').options].some(o=>o.value===s.category)) $('#customerCategory').value=s.category;
     $('#startDate').value=s.startDate||''; $('#deliveryDate').value=s.deliveryDate||'';
@@ -1764,6 +1767,7 @@
     bindV7();
     bindSlideshow();
     bindOnboarding();
+    bindStudio();
     resetCustomerForm();
     refreshUI();
     startReminderClock();
@@ -1786,6 +1790,640 @@
       },wait);
     }
   }
+
+  // =====================================================================
+  // v10 — gender-aware style lists and group orders
+  // =====================================================================
+  const STYLE_CATALOG={
+    Male:[
+      {group:'Yoruba / Nigerian traditional',items:[['Agbada',null],['Agbada (3-piece set)','agbada'],['Aso-Oke Agbada','agbada'],['Buba & Sokoto','native wear'],['Dashiki / Danshiki','native wear'],['Senator / Kaftan','native wear'],['Gbariye','native wear'],['Kembe (wide trousers)','trousers'],['Ankara Native Wear','native wear'],['Lace Native Wear','native wear'],['Native Wear',null]]},
+      {group:'English / Western',items:[['Suit (2-piece)','two-piece'],['Suit (3-piece)','two-piece'],['Tuxedo','two-piece'],['Blazer / Jacket','shirt'],['Waistcoat','shirt'],['Shirt',null],['Polo / T-shirt','shirt'],['Trousers',null],['Shorts','trousers'],['Two-Piece',null]]},
+      {group:'Other',items:[['Custom',null]]}
+    ],
+    Female:[
+      {group:'Yoruba / Nigerian traditional',items:[['Iro & Buba','native wear'],['Iro, Buba & Gele Set','native wear'],['Aso-Oke Iro & Buba','native wear'],['Ankara Peplum Top & Skirt','two-piece'],['Ankara Gown','dress / gown'],['Kaba & Slit','two-piece'],['Aso-Ebi Gown','dress / gown'],['Lace Gown','dress / gown'],['Boubou / Kaftan Gown','dress / gown'],['Corset Gown (Ankara)','dress / gown'],['Skirt & Blouse','two-piece'],['Native Wear',null]]},
+      {group:'English / Western',items:[['Dress / Gown',null],['Flare Gown',null],['A-line Dress','dress / gown'],['Mermaid Gown','dress / gown'],['Ball Gown','flare gown'],['Wedding Gown','flare gown'],['Evening Gown','dress / gown'],['Bodycon Dress','dress / gown'],['Maxi Dress','dress / gown'],['Wrap Dress','dress / gown'],['Shift Dress','dress / gown'],['Peplum Dress','dress / gown'],['Jumpsuit','two-piece'],['Palazzo Set','two-piece'],['Pencil Skirt','skirt'],['Skirt',null],['Blouse / Top','shirt'],['Shirt',null],['Trousers',null],['Two-Piece',null]]},
+      {group:'Other',items:[['Custom',null]]}
+    ]
+  };
+  const STYLE_UNIFORM=['School Shirt & Trousers','School Shirt & Shorts','Blouse & Skirt (uniform)','Pinafore / Tunic','School Gown','PE Kit / Tracksuit','Office Shirt & Trousers','Native Uniform','Choir Robe','Apron / Overall'];
+  const STYLE_DEFAULT={Female:'Dress / Gown',Male:'Native Wear',Other:'Dress / Gown'};
+  const STYLE_BASE={}, STYLE_LABEL={};
+  Object.values(STYLE_CATALOG).forEach(cat=>cat.forEach(gr=>gr.items.forEach(([label,base])=>{ if(base){ STYLE_BASE[label.toLowerCase()]=base; STYLE_LABEL[label.toLowerCase()]=label; } })));
+  // New style names behave like the existing garment family they belong to (fabric guide, measurement template).
+  function baseCategoryKey(category){ const x=String(category||'').toLowerCase(); return STYLE_BASE[x]||x; }
+  function styleDisplayLabel(category){ return STYLE_LABEL[String(category||'').toLowerCase()]||''; }
+  function styleGroupsFor(g){
+    const src=g==='Male'?[STYLE_CATALOG.Male]:g==='Female'?[STYLE_CATALOG.Female]:[STYLE_CATALOG.Female,STYLE_CATALOG.Male];
+    const order=[], map={};
+    src.forEach(cat=>cat.forEach(gr=>{ if(!map[gr.group]){map[gr.group]=[];order.push(gr.group);} gr.items.forEach(([label])=>{ if(!map[gr.group].includes(label)) map[gr.group].push(label); }); }));
+    return order.map(name=>({group:name,labels:map[name]}));
+  }
+  function styleOptionsHTML(groups,desired){
+    let html=groups.map(gr=>`<optgroup label="${escapeHTML(gr.group)}">${gr.labels.map(l=>`<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`).join('')}</optgroup>`).join('');
+    const all=groups.flatMap(gr=>gr.labels);
+    if(desired && !all.includes(desired)) html+=`<optgroup label="Saved style"><option value="${escapeHTML(desired)}">${escapeHTML(desired)}</option></optgroup>`;
+    return html;
+  }
+  function updateMeasureFor(gender){
+    const t=$('#measureForText'), i=$('#measureFor .mf-ico'); if(!t||!i) return;
+    const g=gender==='Male'?'Male':gender==='Female'?'Female':'Other';
+    t.textContent=g==='Other'?'Other (standard fields)':g; i.textContent=g==='Male'?'♂':g==='Female'?'♀':'⚥';
+  }
+  function renderStyleOptions(gender,desired){
+    const sel=$('#customerCategory'); if(!sel) return;
+    const g=gender==='Male'||gender==='Female'?gender:'Other';
+    sel.innerHTML=styleOptionsHTML(styleGroupsFor(g),desired||'');
+    sel.value=(desired&&[...sel.options].some(o=>o.value===desired))?desired:STYLE_DEFAULT[g];
+    updateMeasureFor(gender);
+  }
+
+  // ---------- group orders ----------
+  const GS_LIB_PREFIX='sticha_groups_', GS_DRAFT_PREFIX='sticha_draft_group_', GS_MODE_PREFIX='sticha_addmode_';
+  const GS_MAX_MEMBERS=150, GS_MAX_CLOTH=6;
+  const GS_CATS={
+    uniform:['School uniform','Church / Choir','Office / Corporate','Club / Association','Sports / PE','Other'],
+    dress:['Aso-ebi / Wedding','Burial / Memorial','Birthday / Party','Church event','Family / Naming','Graduation','Other']
+  };
+  const GS_ICON={
+    uniform:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.5-1.8 2.3-4 2.3S8.5 4.5 8 3z"/></svg>',
+    dress:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-.8 5.5L19 21H5l4.8-12.5z"/><path d="M9.8 8.5h4.4"/></svg>',
+    cam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.4"/></svg>',
+    trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+    chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+    x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+  };
+  let groups=[], groupsUid=null, groupsReady=false, gsLoading=null;
+  let gs=null, addMode='single', gsFirstShow=true, gsWasActive=false, gsDraftTimer=null, gsSaving=false;
+  let gsFilter='all', gsQuery='', gsOpenId='', gsLastFocus=null, gsDeleteTimer=null, gsSearchTimer=null, gsFreshId='';
+
+  function gsUid(){ return currentUser?.id||'guest'; }
+  function gsCloudPhotoPrefix(){ const u=window.STICHA_SUPABASE_CONFIG&&window.STICHA_SUPABASE_CONFIG.url; return u?String(u).replace(/\/$/,'')+'/storage/v1/object/public/customer-photos/':null; }
+  function gsSafePhoto(p){ if(typeof p!=='string') return ''; if(p.startsWith('data:image/')) return p; const pre=gsCloudPhotoPrefix(); return pre&&p.startsWith(pre)?p:''; }
+  function gsCleanMeasures(m){ const o={}; if(m&&typeof m==='object') Object.entries(m).forEach(([k,v])=>{ const val=String(v??'').trim(); if(val) o[String(k).slice(0,40)]=val.slice(0,12); }); return o; }
+  function gsBlankMember(prev){ return {id:uid('member'),name:'',cls:prev?.cls||'',phone:'',gender:prev?.gender==='Male'?'Male':'Female',photo:'',m:{},note:'',open:false}; }
+  function gsDefaultStyle(type,gender){ if(type==='uniform') return 'School Shirt & Trousers'; return gender==='Female'?'Dress / Gown':'Native Wear'; }
+  function gsBlank(){
+    return {id:'',type:'uniform',name:'',category:GS_CATS.uniform[0],gender:'Mixed',genderTouched:false,style:gsDefaultStyle('uniform','Mixed'),fabricWidth:45,unit:'in',includeTrouser:false,
+      startDate:localDateInputValue(),deliveryDate:localDateInputValue(new Date(Date.now()+14*86400000)),price:'',notes:'',cloth:[],members:[gsBlankMember(null)],createdAt:'',updatedAt:''};
+  }
+  function gsNormalizeState(s){
+    if(!s||typeof s!=='object') return gsBlank();
+    const type=s.type==='dress'?'dress':'uniform';
+    const gender=['Female','Male','Mixed'].includes(s.gender)?s.gender:(type==='uniform'?'Mixed':'Female');
+    const members=(Array.isArray(s.members)?s.members:[]).slice(0,GS_MAX_MEMBERS).map(m=>({
+      id:String(m?.id||uid('member')),name:String(m?.name||'').slice(0,80),cls:String(m?.cls||'').slice(0,40),phone:String(m?.phone||'').slice(0,30),
+      gender:m?.gender==='Male'?'Male':'Female',photo:gsSafePhoto(m?.photo),m:gsCleanMeasures(m?.m),note:String(m?.note||'').slice(0,160),open:false}));
+    if(!members.length) members.push(gsBlankMember(null));
+    return {id:String(s.id||''),type,name:String(s.name||'').slice(0,80),category:GS_CATS[type].includes(s.category)?s.category:GS_CATS[type][0],gender,genderTouched:!!s.genderTouched,
+      style:String(s.style||'').slice(0,60)||gsDefaultStyle(type,gender),fabricWidth:Number(s.fabricWidth)===60?60:45,unit:s.unit==='cm'?'cm':'in',includeTrouser:!!s.includeTrouser,
+      startDate:String(s.startDate||''),deliveryDate:String(s.deliveryDate||''),price:String(s.price||'').replace(/[^0-9.]/g,'').slice(0,12),notes:String(s.notes||'').slice(0,600),
+      cloth:(Array.isArray(s.cloth)?s.cloth:[]).map(gsSafePhoto).filter(Boolean).slice(0,GS_MAX_CLOTH),members,createdAt:String(s.createdAt||''),updatedAt:String(s.updatedAt||'')};
+  }
+  function gsMemberGender(src,m){ return src.gender==='Mixed'?(m.gender==='Male'?'Male':'Female'):src.gender; }
+  function gsMeasureNames(g,incl){ const male=g==='Male'; const top=male?templates.maleTop:templates.femaleTop; const tr=male?templates.maleTrouser:templates.femaleTrouser; return incl?[...top,...tr]:[...top]; }
+  function gsHasContent(s){
+    return !!(s.name.trim()||s.notes.trim()||String(s.price).trim()||s.cloth.length||s.members.some(m=>m.name.trim()||m.phone.trim()||m.note.trim()||m.photo||Object.keys(m.m||{}).length));
+  }
+  function gsStats(src){
+    const members=src.members.filter(m=>String(m.name||'').trim());
+    let yards=0;
+    if(src.type==='dress') members.forEach(m=>{
+      const div=src.unit==='cm'?2.54:1, meas={};
+      Object.entries(m.m||{}).forEach(([k,v])=>{ const n=Number(String(v).replace(/[^0-9.]/g,'')); if(n) meas[k]=String(n/div); });
+      try{ yards+=estimateFabricYards({gender:gsMemberGender(src,m),category:src.style,fabricWidth:src.fabricWidth,measurements:meas}).yards; }catch{}
+    });
+    const price=Number(String(src.price||'').replace(/[^0-9.]/g,''))||0;
+    return {people:members.length,yards,total:price*members.length};
+  }
+  const fmtYd=y=>`${+y.toFixed(2)} yd`;
+  function gsFmtDate(v){ return v?formatDate(v):'Not set'; }
+
+  // ----- storage -----
+  function gsLibKey(){ return GS_LIB_PREFIX+gsUid(); }
+  function gsDraftKey(){ return GS_DRAFT_PREFIX+gsUid(); }
+  async function gsPersist(list){
+    const key=gsLibKey(); let ok=false;
+    try{ ok=await idbSet(key,list); }catch{ ok=false; }
+    let ok2=false; try{ localStorage.setItem(key,JSON.stringify(list)); ok2=true; }catch{}
+    return ok||ok2;
+  }
+  async function gsEnsure(){
+    const uidNow=gsUid();
+    if(groupsReady&&groupsUid===uidNow) return;
+    if(gsLoading) return gsLoading;
+    gsLoading=(async()=>{
+      const a=await idbGet(GS_LIB_PREFIX+uidNow); const b=safeJSON(localStorage.getItem(GS_LIB_PREFIX+uidNow),null);
+      const raw=Array.isArray(a)?a:(Array.isArray(b)?b:[]);
+      groups=raw.filter(g=>g&&typeof g==='object').map(g=>gsNormalizeState(g)).filter(g=>g.id&&g.name);
+      let d=null; try{ const da=await idbGet(GS_DRAFT_PREFIX+uidNow); const db=safeJSON(localStorage.getItem(GS_DRAFT_PREFIX+uidNow),null); const x=da||db; d=x&&x.v&&x.state?x.state:null; }catch{}
+      gs=d?gsNormalizeState(d):gsBlank();
+      if(gs.id&&!groups.some(g=>g.id===gs.id)) gs.id='';
+      groupsUid=uidNow; groupsReady=true;
+    })().catch(e=>{ console.warn('STICHA groups load failed:',e); groups=[]; gs=gsBlank(); groupsUid=uidNow; groupsReady=true; }).finally(()=>{ gsLoading=null; });
+    gsLoading.then(()=>{ if(currentUser&&navigator.onLine) gsSyncSoon(); }).catch(()=>{});
+    return gsLoading;
+  }
+  function gsTouch(){ clearTimeout(gsDraftTimer); gsDraftTimer=setTimeout(gsWriteDraft,500); }
+  function gsWriteDraft(){
+    clearTimeout(gsDraftTimer);
+    if(!currentUser||!groupsReady||groupsUid!==gsUid()) return;
+    const key=gsDraftKey();
+    if(!gsHasContent(gs)&&!gs.id){ try{localStorage.removeItem(key);}catch{} idbDel(key); return; }
+    const snap={v:1,savedAt:Date.now(),state:gs};
+    try{ localStorage.setItem(key,JSON.stringify(snap,(k,v)=>(typeof v==='string'&&v.startsWith('data:'))?'':v)); }catch{}
+    idbSet(key,snap);
+  }
+  function gsDiscardDraft(){ clearTimeout(gsDraftTimer); const key=gsDraftKey(); try{localStorage.removeItem(key);}catch{} idbDel(key); }
+
+  // ----- cloud sync (Supabase table `customer_groups` + Storage bucket `customer-photos`) -----
+  // The device copy stays the fast, offline-first copy. Every save/delete is queued and pushed to
+  // Supabase in the background; on every sync the cloud copy is also pulled so a new phone sees the same groups.
+  const GS_PENDING_PREFIX='sticha_gpending_', GS_SYNCED_PREFIX='sticha_gsynced_';
+  let gsSyncRunning=null, gsSyncQueued=false, gsWarnedMissing=false;
+  const gsTime=v=>{ const t=Date.parse(v||''); return Number.isFinite(t)?t:0; };
+  function gsPendRead(u){ const p=safeJSON(localStorage.getItem(GS_PENDING_PREFIX+u),null)||{}; return {up:Array.isArray(p.up)?p.up.map(String):[],del:Array.isArray(p.del)?p.del.map(String):[]}; }
+  function gsPendWrite(u,p){ try{ if(p.up.length||p.del.length) localStorage.setItem(GS_PENDING_PREFIX+u,JSON.stringify(p)); else localStorage.removeItem(GS_PENDING_PREFIX+u); }catch{} }
+  function gsMarkUp(id){ if(!currentUser) return; const u=currentUser.id, p=gsPendRead(u); p.del=p.del.filter(x=>x!==id); if(!p.up.includes(id)) p.up.push(id); gsPendWrite(u,p); }
+  function gsMarkDel(id){ if(!currentUser) return; const u=currentUser.id, p=gsPendRead(u); p.up=p.up.filter(x=>x!==id); if(!p.del.includes(id)) p.del.push(id); gsPendWrite(u,p); }
+  function gsPendDrop(u,kind,id){ const p=gsPendRead(u); p[kind]=p[kind].filter(x=>x!==id); gsPendWrite(u,p); }
+  function gsPhotoPaths(g){
+    const pre=gsCloudPhotoPrefix(), set=new Set(); if(!pre) return set;
+    [...g.members.map(m=>m.photo),...g.cloth].forEach(src=>{ if(typeof src==='string'&&src.startsWith(pre)) set.add(decodeURIComponent(src.slice(pre.length).split('?')[0])); });
+    return set;
+  }
+  async function gsUploadPhotos(g,u){
+    const copy=JSON.parse(JSON.stringify(g));
+    const put=async src=>{
+      if(typeof src!=='string'||!src.startsWith('data:')) return src;
+      const url=await uploadToBucket('customer-photos',`${u}/groups/${g.id}/p_${uid('p')}.jpg`,src);
+      if(!url) throw new Error('group photo upload failed');
+      return url;
+    };
+    for(const m of copy.members) m.photo=m.photo?await put(m.photo):'';
+    for(let i=0;i<copy.cloth.length;i++) copy.cloth[i]=await put(copy.cloth[i]);
+    return copy;
+  }
+  // Removes uploaded photo files that no saved group refers to any more (never files younger than minAgeMs).
+  async function gsCleanupPhotos(client,u,gid,keepPaths,minAgeMs){
+    try{
+      const folder=`${u}/groups/${gid}`, bucket=client.storage.from('customer-photos');
+      const {data,error}=await bucket.list(folder,{limit:1000});
+      if(error||!Array.isArray(data)) return;
+      const gone=data.filter(f=>f&&f.name&&f.id!==null&&!keepPaths.has(`${folder}/${f.name}`)&&(!minAgeMs||!f.created_at||Date.now()-gsTime(f.created_at)>minAgeMs)).map(f=>`${folder}/${f.name}`);
+      if(gone.length) await bucket.remove(gone);
+    }catch(e){ console.warn('STICHA group photo cleanup skipped:',e); }
+  }
+  function gsSyncProblem(e){
+    console.warn('STICHA group cloud sync problem:',e);
+    const text=`${e?.code||''} ${e?.message||''}`;
+    if(!gsWarnedMissing&&/42P01|PGRST205|customer_groups/i.test(text)&&!isNetworkError(e)){
+      gsWarnedMissing=true; showToast('Groups are not in the cloud yet','Run SUPABASE_GROUPS_MIGRATION.sql in your Supabase SQL Editor.');
+    }
+  }
+  function gsSyncSoon(){ gsSync().catch(e=>console.warn('STICHA group sync skipped:',e)); }
+  function gsSync(){
+    if(gsSyncRunning){ gsSyncQueued=true; return gsSyncRunning; }
+    gsSyncRunning=(async()=>{
+      try{ return await gsSyncNow(); }
+      finally{ gsSyncRunning=null; if(gsSyncQueued){ gsSyncQueued=false; gsSyncSoon(); } }
+    })();
+    return gsSyncRunning;
+  }
+  async function gsSyncNow(){
+    const client=supabaseClient();
+    if(!client||!currentUser||!navigator.onLine) return false;
+    const u=currentUser.id;
+    await gsEnsure();
+    const same=()=>!!currentUser&&currentUser.id===u&&groupsUid===u;
+    if(!same()) return false;
+    let allOk=true, wasSynced=false;
+    try{ wasSynced=localStorage.getItem(GS_SYNCED_PREFIX+u)==='1'; }catch{}
+    // First sync on this device: everything already saved on the phone is uploaded once.
+    if(!wasSynced){ const p=gsPendRead(u); groups.forEach(g=>{ if(!p.up.includes(g.id)&&!p.del.includes(g.id)) p.up.push(g.id); }); gsPendWrite(u,p); }
+
+    // 1) deletions
+    for(const id of gsPendRead(u).del){
+      try{
+        const {error}=await client.from('customer_groups').delete().eq('user_id',u).eq('id',id);
+        if(error) throw error;
+        await gsCleanupPhotos(client,u,id,new Set(),0);
+        gsPendDrop(u,'del',id);
+      }catch(e){ allOk=false; gsSyncProblem(e); }
+    }
+    // 2) saves / edits
+    for(const id of gsPendRead(u).up){
+      if(!same()) return false;
+      const g=groups.find(x=>x.id===id);
+      if(!g){ gsPendDrop(u,'up',id); continue; }
+      try{
+        const stamp=g.updatedAt;
+        const copy=await gsUploadPhotos(g,u);
+        if(!same()) return false;
+        const row={id:g.id,user_id:u,name:g.name,type:g.type,data:copy,updated_at:gsTime(g.updatedAt)?g.updatedAt:new Date().toISOString()};
+        if(gsTime(g.createdAt)) row.created_at=g.createdAt;
+        const {error}=await client.from('customer_groups').upsert(row,{onConflict:'user_id,id'});
+        if(error) throw error;
+        const cur=groups.find(x=>x.id===id);
+        if(cur&&cur.updatedAt===stamp){
+          // Unchanged since the upload started: keep the cloud photo links on the device and mark it done.
+          groups=groups.map(x=>x.id===id?gsNormalizeState(copy):x);
+          await gsPersist(groups);
+          gsPendDrop(u,'up',id);
+        }
+        await gsCleanupPhotos(client,u,id,gsPhotoPaths(copy),10*60*1000);
+      }catch(e){ allOk=false; gsSyncProblem(e); }
+    }
+    if(!same()) return false;
+    // 3) pull everything the cloud has (new phone, or another device) and merge
+    try{
+      const {data:rows,error}=await client.from('customer_groups').select('id,data,created_at,updated_at').eq('user_id',u);
+      if(error) throw error;
+      if(!same()) return false;
+      const pend=gsPendRead(u), pendUp=new Set(pend.up), pendDel=new Set(pend.del);
+      const localById=new Map(groups.map(g=>[g.id,g])), cloudIds=new Set(), merged=[];
+      (rows||[]).forEach(r=>{
+        const id=String(r.id); cloudIds.add(id);
+        if(pendDel.has(id)) return;
+        const local=localById.get(id), cloudData=(r.data&&typeof r.data==='object')?r.data:{};
+        if(local&&(pendUp.has(id)||gsTime(local.updatedAt)>=gsTime(cloudData.updatedAt||r.updated_at))){ merged.push(local); return; }
+        const cg=gsNormalizeState({...cloudData,id});
+        if(!cg.name) return;
+        if(!cg.createdAt) cg.createdAt=r.created_at||''; if(!cg.updatedAt) cg.updatedAt=r.updated_at||'';
+        merged.push(cg);
+      });
+      groups.forEach(g=>{ if(!cloudIds.has(g.id)&&(pendUp.has(g.id)||!wasSynced)) merged.push(g); });
+      merged.sort((a,b)=>gsTime(b.createdAt)-gsTime(a.createdAt));
+      const changed=merged.length!==groups.length||merged.some((g,i)=>g!==groups[i]);
+      if(changed){
+        groups=merged;
+        await gsPersist(groups);
+        if(gs&&gs.id&&!groups.some(g=>g.id===gs.id)) gs.id='';
+        if(gsOpenId&&!groups.some(g=>g.id===gsOpenId)) gsCloseGroup(true);
+        gsRenderStats(); gsRenderLibrary(); gsRefreshTabDot();
+      }
+      if(allOk){ try{ localStorage.setItem(GS_SYNCED_PREFIX+u,'1'); }catch{} }
+    }catch(e){ allOk=false; gsSyncProblem(e); }
+    return allOk;
+  }
+
+  // ----- images -----
+  function gsCompress(file,maxDim,quality){
+    return new Promise((resolve,reject)=>{
+      if(!file||!/^image\//.test(file.type||'')) return reject(new Error('not-image'));
+      const url=URL.createObjectURL(file), img=new Image();
+      img.onload=()=>{
+        try{
+          const r=Math.min(1,maxDim/Math.max(img.naturalWidth,img.naturalHeight)||1);
+          const w=Math.max(1,Math.round(img.naturalWidth*r)), h=Math.max(1,Math.round(img.naturalHeight*r));
+          const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+          const ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+          URL.revokeObjectURL(url); resolve(cv.toDataURL('image/jpeg',quality));
+        }catch(e){ URL.revokeObjectURL(url); reject(e); }
+      };
+      img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error('load-failed')); };
+      img.src=url;
+    });
+  }
+
+  // ----- add-page mode -----
+  function setAddMode(mode){
+    mode=mode==='group'?'group':'single'; addMode=mode;
+    const view=$('#view-add'); if(!view) return;
+    view.classList.toggle('mode-group',mode==='group');
+    const tabs=$('#addModeTabs'); if(tabs) tabs.dataset.mode=mode;
+    $$('#addModeTabs [data-add-mode]').forEach(b=>{ const on=b.dataset.addMode===mode; b.classList.toggle('active',on); b.setAttribute('aria-selected',on?'true':'false'); });
+    try{ localStorage.setItem(GS_MODE_PREFIX+gsUid(),mode); }catch{}
+    if(mode==='group') gsEnsure().then(()=>{ if(addMode==='group') gsRenderAll(); }).catch(e=>console.warn('STICHA group view skipped:',e));
+    else gsRefreshTabDot();
+  }
+  function gsRefreshTabDot(){ const d=$('#amGroupDot'); if(d) d.hidden=!(addMode!=='group'&&groupsReady&&gs&&gsHasContent(gs)); }
+  function gsOnShowAdd(){
+    let target=addMode;
+    if(gsFirstShow){ gsFirstShow=false; let stored='single'; try{stored=localStorage.getItem(GS_MODE_PREFIX+gsUid())||'single';}catch{} if(stored==='group'&&!$('#customerForm')?.dataset.editingId) target='group'; }
+    setAddMode(target);
+    gsEnsure().then(()=>{ gsRefreshTabDot(); gsRenderStats(); }).catch(()=>{});
+  }
+  function gsOnLeaveAdd(){ if(gsOpenId) gsCloseGroup(true); if(groupsReady) gsWriteDraft(); setAddMode('single'); }
+  function gsWatchAddView(){
+    const view=$('#view-add'); if(!view||typeof MutationObserver==='undefined') return;
+    gsWasActive=view.classList.contains('active');
+    new MutationObserver(()=>{ const on=view.classList.contains('active'); if(on&&!gsWasActive) gsOnShowAdd(); else if(!on&&gsWasActive) gsOnLeaveAdd(); gsWasActive=on; }).observe(view,{attributes:true,attributeFilter:['class']});
+  }
+
+  // ----- builder rendering -----
+  function gsRenderAll(){ if(!gs) return; gsRenderStats(); gsRenderBuilderFields(); gsRenderCloth(); gsRenderMembers(); gsRenderSummary(); gsRenderLibrary(); gsRefreshTabDot(); }
+  function gsRenderStats(){
+    const set=(id,v)=>{ const e=$(id); if(e) e.textContent=v; };
+    set('#grpStatGroups',groups.length); set('#grpStatPeople',groups.reduce((n,g)=>n+g.members.length,0)); set('#grpStatUniform',groups.filter(g=>g.type==='uniform').length);
+  }
+  function gsFillStyleSelect(){
+    const sel=$('#grpStyle'); if(!sel) return;
+    const groupsList=styleGroupsFor(gs.gender==='Mixed'?'Other':gs.gender);
+    const uni=gs.type==='uniform'?`<optgroup label="Uniform pieces">${STYLE_UNIFORM.map(l=>`<option value="${escapeHTML(l)}">${escapeHTML(l)}</option>`).join('')}</optgroup>`:'';
+    const all=[...(gs.type==='uniform'?STYLE_UNIFORM:[]),...groupsList.flatMap(g=>g.labels)];
+    sel.innerHTML=uni+styleOptionsHTML(groupsList,all.includes(gs.style)?'':gs.style);
+    if(![...sel.options].some(o=>o.value===gs.style)) gs.style=gsDefaultStyle(gs.type,gs.gender);
+    if(![...sel.options].some(o=>o.value===gs.style)) gs.style=sel.options[0]?.value||'Custom';
+    sel.value=gs.style;
+  }
+  function gsRenderBuilderFields(){
+    $$('#groupBuilder [data-gtype]').forEach(b=>{ const on=b.dataset.gtype===gs.type; b.classList.toggle('active',on); b.setAttribute('aria-checked',on?'true':'false'); });
+    const uni=gs.type==='uniform';
+    const nl=$('#grpNameLabel'); if(nl) nl.textContent=uni?'School / group name':'Event / group name';
+    const ni=$('#grpName'); if(ni){ ni.placeholder=uni?'e.g. Greenfield College, JSS 2':'e.g. Adeyemi Wedding Aso-ebi'; if(document.activeElement!==ni) ni.value=gs.name; }
+    const cats=$('#grpCats'); if(cats) cats.innerHTML=GS_CATS[gs.type].map(c=>`<button type="button" role="radio" aria-checked="${c===gs.category}" class="grp-chip${c===gs.category?' active':''}" data-gcat="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join('');
+    const seg=$('#grpGender'); if(seg){ const i=['Female','Male','Mixed'].indexOf(gs.gender); seg.dataset.i=String(i); $$('#grpGender [data-gg]').forEach(b=>{ const on=b.dataset.gg===gs.gender; b.classList.toggle('active',on); b.setAttribute('aria-checked',on?'true':'false'); }); }
+    const hint=$('#grpGenderHint'); if(hint) hint.textContent=gs.gender==='Mixed'?'Each person gets their own Female / Male switch.':`Measurement fields for everyone follow this choice (${gs.gender}).`;
+    gsFillStyleSelect();
+    const set=(id,v)=>{ const e=$(id); if(e&&document.activeElement!==e) e.value=v; };
+    set('#grpStart',gs.startDate); set('#grpDelivery',gs.deliveryDate); set('#grpFabricWidth',String(gs.fabricWidth)); set('#grpPrice',gs.price); set('#grpNotes',gs.notes);
+    const tr=$('#grpTrouser'); if(tr) tr.checked=!!gs.includeTrouser;
+    $$('#groupBuilder [data-gunit]').forEach(b=>b.classList.toggle('active',b.dataset.gunit===gs.unit));
+    const pl=$('#grpPasteLabel'); if(pl) pl.textContent=uni?'One person per line. Add the class after a comma, e.g. Tunde Bello, JSS 2A':'One name per line';
+    const ph=$('#grpPeopleHint'); if(ph) ph.textContent=uni?'Name, class, measurements and a photo for each student.':'Name and measurements for each person.';
+    const ed=$('#grpEditing'); if(ed){ const editing=!!gs.id; ed.hidden=!editing; const n=$('#grpEditingName'); if(n) n.textContent=gs.name||'group'; }
+    const sb=$('#grpSave'); if(sb) sb.firstChild.textContent=gs.id?'Update group ':'Save group ';
+  }
+  function gsRenderCloth(){
+    const box=$('#grpCloth'), drop=$('#grpDrop'); if(!box) return;
+    box.innerHTML=gs.cloth.map((src,i)=>`<figure class="grp-thumb" style="--d:${i*50}ms"><img src="${src}" alt="Cloth photo ${i+1}">${i===0?'<span class="grp-cover-tag">Cover</span>':''}<button type="button" class="grp-thumb-x" data-cloth-del="${i}" aria-label="Remove photo ${i+1}">${GS_ICON.x}</button></figure>`).join('');
+    if(drop){ drop.hidden=gs.cloth.length>=GS_MAX_CLOTH; const s=drop.querySelector('small'); if(s) s.textContent=gs.cloth.length?`${GS_MAX_CLOTH-gs.cloth.length} more allowed`:'Up to 6 photos'; }
+  }
+  function gsMemberHTML(m,i){
+    const uni=gs.type==='uniform', g=gsMemberGender(gs,m), names=gsMeasureNames(g,gs.includeTrouser);
+    const filled=names.filter(n=>String(m.m[n]||'').trim()).length;
+    const photo=gsSafePhoto(m.photo);
+    const genderSeg=gs.gender==='Mixed'?`<div class="grp-mg" role="radiogroup" aria-label="Gender of person ${i+1}"><button type="button" role="radio" aria-checked="${g==='Female'}" class="${g==='Female'?'active':''}" data-act="mgender" data-g="Female">Female</button><button type="button" role="radio" aria-checked="${g==='Male'}" class="${g==='Male'?'active':''}" data-act="mgender" data-g="Male">Male</button></div>`:'';
+    return `<article class="grp-member${m.open?' open':''}" data-mid="${escapeHTML(m.id)}">
+      <div class="grp-m-head">
+        <span class="grp-m-no">${i+1}</span>
+        <label class="grp-m-photo${photo?' has':''}" ${photo?`style="background-image:url('${photo}')"`:''} title="Add photo" aria-label="Add photo for person ${i+1}">${photo?'':GS_ICON.cam}<input type="file" accept="image/*" data-mphoto></label>
+        <div class="grp-m-fields${uni?' two':''}">
+          <input data-f="name" value="${escapeHTML(m.name)}" maxlength="80" placeholder="Full name" aria-label="Name of person ${i+1}" autocomplete="off">
+          ${uni?`<input data-f="cls" value="${escapeHTML(m.cls)}" maxlength="40" placeholder="Class, e.g. JSS 2A" aria-label="Class of person ${i+1}" autocomplete="off">`:''}
+        </div>
+        <button type="button" class="grp-m-btn" data-act="toggle" aria-expanded="${m.open?'true':'false'}"><span>Measurements</span><small data-prog>${filled}/${names.length}</small>${GS_ICON.chev}</button>
+        <button type="button" class="grp-m-del" data-act="remove" aria-label="Remove person ${i+1}">${GS_ICON.trash}</button>
+      </div>
+      <div class="grp-m-body"><div class="grp-m-in">
+        ${genderSeg}
+        <div class="grp-m-meas">${names.map(n=>`<label><span>${escapeHTML(n)}<small>${gs.unit}</small></span><input inputmode="decimal" data-meas="${escapeHTML(n)}" value="${escapeHTML(m.m[n]||'')}" maxlength="8" placeholder="e.g. 34.5"></label>`).join('')}</div>
+        <div class="grp-m-extra">
+          <label><span>Phone (optional)</span><input data-f="phone" inputmode="tel" value="${escapeHTML(m.phone)}" maxlength="30" placeholder="e.g. 0803 123 4567"></label>
+          <label><span>Note (optional)</span><input data-f="note" value="${escapeHTML(m.note)}" maxlength="160" placeholder="e.g. loose fit"></label>
+        </div>
+      </div></div>
+    </article>`;
+  }
+  function gsRenderMembers(){
+    const box=$('#grpMembers'); if(!box) return;
+    box.innerHTML=gs.members.length?gs.members.map(gsMemberHTML).join(''):'<p class="grp-empty">No one added yet. Tap “Add person” to start.</p>';
+    const c=$('#grpCount'); if(c) c.textContent=gs.members.filter(m=>m.name.trim()).length;
+  }
+  function gsRenumber(){ $$('#grpMembers .grp-member').forEach((el,i)=>{ const n=el.querySelector('.grp-m-no'); if(n) n.textContent=i+1; }); const c=$('#grpCount'); if(c) c.textContent=gs.members.filter(m=>m.name.trim()).length; }
+  function gsRenderSummary(){
+    const box=$('#grpSummary'); if(!box) return;
+    const st=gsStats(gs), parts=[`<div><b>${st.people}</b><span>${st.people===1?'person':'people'}</span></div>`];
+    if(gs.type==='dress'&&st.people) parts.push(`<div><b>≈ ${fmtYd(st.yards)}</b><span>fabric (planning)</span></div>`);
+    if(st.total) parts.push(`<div><b>${formatMoney(st.total)}</b><span>total price</span></div>`);
+    box.innerHTML=parts.join('');
+    const c=$('#grpCount'); if(c) c.textContent=st.people;
+  }
+  function gsFindMember(id){ return gs.members.find(m=>m.id===id); }
+  function gsAddMember(focus=true){
+    if(gs.members.length>=GS_MAX_MEMBERS){ showToast('Group is full',`A group can hold up to ${GS_MAX_MEMBERS} people. Save it and start another group.`); return null; }
+    const prev=gs.members[gs.members.length-1]||null, m=gsBlankMember(prev); gs.members.push(m);
+    const box=$('#grpMembers'); box.querySelector('.grp-empty')?.remove();
+    box.insertAdjacentHTML('beforeend',gsMemberHTML(m,gs.members.length-1));
+    const el=box.lastElementChild; el.classList.add('pop');
+    gsRenumber(); gsRenderSummary(); gsTouch();
+    if(focus){ el.scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>el.querySelector('[data-f="name"]')?.focus({preventScroll:true}),250); }
+    return m;
+  }
+  function gsParseNames(text,uni){
+    return String(text||'').split(/\r?\n/).map(l=>l.replace(/^\s*(?:\d+[.)]|[-*•])\s*/,'').trim()).filter(Boolean).map(line=>{
+      let name=line, cls='';
+      if(uni){
+        const t=line.split(/\t+|\s+[—–-]\s+/); if(t.length>1){ name=t[0].trim(); cls=t.slice(1).join(' ').trim(); }
+        else { const i=line.lastIndexOf(','); if(i>0){ name=line.slice(0,i).trim(); cls=line.slice(i+1).trim(); } }
+      }
+      return {name:name.slice(0,80),cls:cls.slice(0,40)};
+    }).filter(x=>x.name);
+  }
+  function gsPasteNames(){
+    const ta=$('#grpPasteText'); const list=gsParseNames(ta.value,gs.type==='uniform');
+    if(!list.length){ showToast('Nothing to add','Type or paste at least one name.'); return; }
+    gs.members=gs.members.filter(m=>m.name.trim()||m.phone.trim()||m.note.trim()||m.photo||Object.keys(m.m).length);
+    const room=GS_MAX_MEMBERS-gs.members.length, take=list.slice(0,Math.max(0,room));
+    const prev=gs.members[gs.members.length-1]||null;
+    take.forEach(x=>{ const m=gsBlankMember(prev); m.name=x.name; m.cls=x.cls||''; gs.members.push(m); });
+    ta.value=''; $('#grpPaste').hidden=true; $('#grpPasteToggle').setAttribute('aria-expanded','false');
+    gsRenderMembers(); gsRenderSummary(); gsTouch();
+    showToast('People added',`${take.length} ${take.length===1?'person was':'people were'} added.${take.length<list.length?' The rest did not fit in this group.':''}`);
+  }
+  async function gsAddCloth(files){
+    const room=GS_MAX_CLOTH-gs.cloth.length; const list=[...files].slice(0,room); if(!list.length) return;
+    const drop=$('#grpDrop'); drop?.classList.add('busy'); let failed=0;
+    for(const f of list){
+      if(f.size>15*1024*1024){ failed++; continue; }
+      try{ gs.cloth.push(await gsCompress(f,1100,.8)); }catch{ failed++; }
+    }
+    drop?.classList.remove('busy'); gsRenderCloth(); gsTouch();
+    if(failed) showToast('Some photos were skipped','Use photos under 15MB in JPG, PNG or WebP format.');
+    if(files.length>room) showToast('Photo limit reached',`Only ${GS_MAX_CLOTH} photos can be kept per group.`);
+  }
+  async function gsSetMemberPhoto(id,file){
+    const m=gsFindMember(id); if(!m||!file) return;
+    if(file.size>15*1024*1024){ showToast('Photo too large','Choose a photo under 15MB.'); return; }
+    try{
+      m.photo=await gsCompress(file,360,.82);
+      const el=$(`#grpMembers [data-mid="${CSS.escape(id)}"] .grp-m-photo`);
+      if(el){ el.classList.add('has'); el.style.backgroundImage=`url('${m.photo}')`; el.querySelector('svg')?.remove(); }
+      gsTouch();
+    }catch{ showToast('Could not read that photo','Try a JPG or PNG photo.'); }
+  }
+  function gsResetBuilder(){ gs=gsBlank(); gsDiscardDraft(); }
+
+  async function gsSave(){
+    if(gsSaving||!gs) return;
+    const name=gs.name.trim();
+    if(!name){ showToast('Group name needed','Give this group or event a name.'); $('#grpName')?.focus(); return; }
+    const named=gs.members.filter(m=>m.name.trim());
+    if(!named.length){ showToast('Add at least one person','Type a name for the first person.'); return; }
+    if(gs.deliveryDate&&gs.startDate&&parseDateOnly(gs.deliveryDate)<parseDateOnly(gs.startDate)){ showToast('Check the dates','Delivery date cannot be before the starting date.'); return; }
+    gsSaving=true; const btn=$('#grpSave'); if(btn){ btn.disabled=true; btn.classList.add('busy'); }
+    try{
+      const now=new Date().toISOString(), old=gs.id?groups.find(g=>g.id===gs.id):null;
+      const rec=gsNormalizeState({...gs,id:old?old.id:uid('group'),name,members:named.map(m=>{
+        const keep=new Set(gsMeasureNames(gsMemberGender(gs,m),gs.includeTrouser)), meas={};
+        Object.entries(m.m).forEach(([k,v])=>{ if(keep.has(k)) meas[k]=v; });
+        return {...m,name:m.name.trim(),cls:gs.type==='uniform'?m.cls.trim():'',m:meas};
+      })});
+      rec.createdAt=old?(old.createdAt||now):now; rec.updatedAt=now;
+      const next=old?groups.map(g=>g.id===rec.id?rec:g):[rec,...groups];
+      if(!(await gsPersist(next))){ showToast('Could not save','Your device storage may be full. Remove some photos and try again.'); return; }
+      groups=next; gsMarkUp(rec.id); gsSyncSoon(); gsFresh(rec.id);
+      gsResetBuilder(); gsFilter='all'; gsQuery=''; const s=$('#grpSearch'); if(s) s.value='';
+      gsRenderAll();
+      showToast(old?'Group updated':'Group saved',`${rec.name} · ${rec.members.length} ${rec.members.length===1?'person':'people'} saved.`);
+      setTimeout(()=>$('#groupLibrary')?.scrollIntoView({behavior:'smooth',block:'start'}),120);
+    }catch(err){ console.error('STICHA group save failed:',err); showToast('Could not save','Please try again.'); }
+    finally{ gsSaving=false; if(btn){ btn.disabled=false; btn.classList.remove('busy'); } }
+  }
+  function gsFresh(id){ gsFreshId=id; setTimeout(()=>{ if(gsFreshId===id){ gsFreshId=''; $$('.grp-card.fresh').forEach(c=>c.classList.remove('fresh')); } },3500); }
+
+  // ----- library -----
+  function gsFilteredGroups(){
+    const q=gsQuery.trim().toLowerCase();
+    return groups.filter(g=>{
+      if(gsFilter==='type:uniform'&&g.type!=='uniform') return false;
+      if(gsFilter==='type:dress'&&g.type!=='dress') return false;
+      if(gsFilter.startsWith('cat:')&&g.category!==gsFilter.slice(4)) return false;
+      if(!q) return true;
+      return `${g.name} ${g.category} ${g.style} ${g.members.map(m=>`${m.name} ${m.cls}`).join(' ')}`.toLowerCase().includes(q);
+    });
+  }
+  function gsRenderLibrary(){
+    const f=$('#grpFilters'), c=$('#grpCards'); if(!f||!c) return;
+    const cats=[...new Set(groups.map(g=>g.category))];
+    const chip=(key,label,n)=>`<button type="button" class="grp-chip${gsFilter===key?' active':''}" data-gfilter="${escapeHTML(key)}">${escapeHTML(label)} <em>${n}</em></button>`;
+    if(!cats.includes(gsFilter.slice(4))&&gsFilter.startsWith('cat:')) gsFilter='all';
+    f.innerHTML=groups.length?chip('all','All',groups.length)+chip('type:uniform','Uniforms',groups.filter(g=>g.type==='uniform').length)+chip('type:dress','Dresses',groups.filter(g=>g.type==='dress').length)+cats.map(k=>chip('cat:'+k,k,groups.filter(g=>g.category===k).length)).join(''):'';
+    const list=gsFilteredGroups();
+    if(!groups.length){ c.innerHTML=`<div class="grp-empty-lib"><div class="grp-empty-ico">${GS_ICON.uniform}</div><b>No groups yet</b><p>Your saved uniforms and event orders will appear here, grouped by category.</p></div>`; return; }
+    if(!list.length){ c.innerHTML='<div class="grp-empty-lib"><b>No matching groups</b><p>Try a different search or filter.</p></div>'; return; }
+    c.innerHTML=list.map((g,i)=>{
+      const cover=g.cloth[0], left=g.members.slice(0,4);
+      return `<article class="grp-card${g.id===gsFreshId?' fresh':''}" data-gid="${escapeHTML(g.id)}" tabindex="0" role="button" aria-label="Open ${escapeHTML(g.name)}" style="--d:${Math.min(i,10)*55}ms">
+        <div class="grp-card-cover ${cover?'':'plain '+g.type}" ${cover?`style="background-image:url('${cover}')"`:''}>${cover?'':`<span class="grp-card-ico">${GS_ICON[g.type]}</span>`}<span class="grp-badge ${g.type}">${g.type==='uniform'?'Uniform':'Dress'}</span>${g.cloth.length>1?`<span class="grp-photos">${g.cloth.length} photos</span>`:''}</div>
+        <div class="grp-card-body"><h4>${escapeHTML(g.name)}</h4><p>${escapeHTML(g.category)} · ${escapeHTML(g.style)}</p>
+        <div class="grp-card-meta"><span>${g.members.length} ${g.members.length===1?'person':'people'}</span><span>Due ${escapeHTML(gsFmtDate(g.deliveryDate))}</span></div>
+        <div class="grp-avatars">${left.map(m=>`<i>${gsSafePhoto(m.photo)?`<img src="${m.photo}" alt="">`:escapeHTML((m.name[0]||'?').toUpperCase())}</i>`).join('')}${g.members.length>4?`<i class="more">+${g.members.length-4}</i>`:''}</div></div>
+      </article>`;
+    }).join('');
+  }
+
+  // ----- detail sheet -----
+  function gsOpenGroup(id,trigger){
+    const g=groups.find(x=>x.id===id); const modal=$('#grpModal'), sheet=$('#grpSheet'); if(!g||!modal||!sheet) return;
+    gsOpenId=id; gsLastFocus=trigger||document.activeElement;
+    const st=gsStats(g);
+    const gallery=g.cloth.length?`<div class="grp-gallery">${g.cloth.map((s,i)=>`<img src="${s}" alt="Cloth photo ${i+1} of ${g.cloth.length}">`).join('')}</div>`:`<div class="grp-gallery plain ${g.type}"><span class="grp-card-ico">${GS_ICON[g.type]}</span></div>`;
+    const stats=[`<div><b>${st.people}</b><span>${st.people===1?'person':'people'}</span></div>`];
+    if(g.type==='dress') stats.push(`<div><b>≈ ${fmtYd(st.yards)}</b><span>fabric (planning)</span></div>`);
+    if(st.total) stats.push(`<div><b>${formatMoney(st.total)}</b><span>total price</span></div>`);
+    const rows=g.members.map(m=>{
+      const ent=Object.entries(m.m||{});
+      return `<div class="grp-prow"><button type="button" class="grp-prow-head" aria-expanded="false" data-prow><i class="grp-pav">${gsSafePhoto(m.photo)?`<img src="${m.photo}" alt="">`:escapeHTML((m.name[0]||'?').toUpperCase())}</i><span class="grp-pname"><b>${escapeHTML(m.name)}</b><small>${g.type==='uniform'&&m.cls?escapeHTML(m.cls)+' · ':''}${gsMemberGender(g,m)} · ${ent.length} measurement${ent.length===1?'':'s'}</small></span>${GS_ICON.chev}</button>
+        <div class="grp-pbody"><div>${ent.length?`<div class="grp-pchips">${ent.map(([k,v])=>`<span><small>${escapeHTML(k)}</small><b>${escapeHTML(v)} ${g.unit}</b></span>`).join('')}</div>`:'<p class="muted">No measurements saved yet.</p>'}${m.phone?`<p class="grp-pmeta">Phone: ${escapeHTML(m.phone)}</p>`:''}${m.note?`<p class="grp-pmeta">Note: ${escapeHTML(m.note)}</p>`:''}</div></div></div>`;
+    }).join('');
+    sheet.innerHTML=`<button type="button" class="grp-x" data-grp-close aria-label="Close">${GS_ICON.x}</button>${gallery}
+      <div class="grp-sheet-body"><p class="eyebrow">${g.type==='uniform'?'UNIFORM':'DRESS / EVENT'} · ${escapeHTML(g.category.toUpperCase())}</p><h2 id="grpModalTitle">${escapeHTML(g.name)}</h2>
+      <div class="grp-pills"><span>${escapeHTML(g.style)}</span><span>${g.unit==='cm'?'Centimetres':'Inches'}</span><span>${g.fabricWidth}" fabric</span><span>Start ${escapeHTML(gsFmtDate(g.startDate))}</span><span>Due ${escapeHTML(gsFmtDate(g.deliveryDate))}</span></div>
+      <div class="grp-stats">${stats.join('')}</div>
+      ${g.notes?`<p class="grp-notes">${escapeHTML(g.notes)}</p>`:''}
+      <h3 class="grp-ph">People (${g.members.length})</h3><div class="grp-plist">${rows}</div>
+      <div class="grp-sheet-actions"><button type="button" class="primary-btn" data-grp-edit>Edit group</button><button type="button" class="ghost-btn grp-del" data-grp-delete>Delete group</button></div></div>`;
+    modal.classList.add('show'); modal.setAttribute('aria-hidden','false');
+    document.body.classList.add('grp-lock');
+    sheet.scrollTop=0; setTimeout(()=>sheet.querySelector('.grp-x')?.focus({preventScroll:true}),60);
+  }
+  function gsCloseGroup(silent){
+    const modal=$('#grpModal'); if(!modal) return;
+    clearTimeout(gsDeleteTimer); gsOpenId='';
+    modal.classList.remove('show'); modal.setAttribute('aria-hidden','true'); document.body.classList.remove('grp-lock');
+    if(!silent&&gsLastFocus&&document.contains(gsLastFocus)) try{ gsLastFocus.focus({preventScroll:true}); }catch{}
+    gsLastFocus=null;
+  }
+  function gsStartEdit(id){
+    const g=groups.find(x=>x.id===id); if(!g) return;
+    if(gsHasContent(gs)&&gs.id!==id&&!window.confirm('Replace the unfinished group in the form with this one?')) return;
+    gs=gsNormalizeState(JSON.parse(JSON.stringify(g)));
+    gs.includeTrouser=!!g.includeTrouser; gs.genderTouched=true;
+    gsCloseGroup(true); setAddMode('group'); gsRenderAll(); gsTouch();
+    setTimeout(()=>$('#groupBuilder')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
+  }
+  async function gsDelete(id){
+    const next=groups.filter(g=>g.id!==id);
+    if(!(await gsPersist(next))){ showToast('Could not delete','Please try again.'); return; }
+    const gone=groups.find(g=>g.id===id); groups=next; gsMarkDel(id); gsSyncSoon();
+    if(gs.id===id){ gs.id=''; gsTouch(); }
+    gsCloseGroup(true); gsRenderAll(); showToast('Group deleted',`${gone?.name||'The group'} was removed.`);
+  }
+
+  // ----- events -----
+  function bindStudio(){
+    $('#customerGender')?.addEventListener('change',e=>{ const g=e.target.value==='Male'||e.target.value==='Female'?e.target.value:'Other'; const cur=$('#customerCategory')?.value||''; const inList=styleGroupsFor(g).some(gr=>gr.labels.includes(cur)); renderStyleOptions(e.target.value,inList?cur:''); renderDraftFabricEstimate(); });
+    $('#addModeTabs')?.addEventListener('click',e=>{ const b=e.target.closest('[data-add-mode]'); if(b) setAddMode(b.dataset.addMode); });
+    gsWatchAddView();
+    const bld=$('#groupBuilder'); if(!bld) return;
+    bld.addEventListener('click',e=>{
+      const t=e.target;
+      const type=t.closest('[data-gtype]');
+      if(type){ const nt=type.dataset.gtype; if(nt!==gs.type){ gs.type=nt; if(!GS_CATS[nt].includes(gs.category)) gs.category=GS_CATS[nt][0]; if(!gs.genderTouched&&!gs.id) gs.gender=nt==='uniform'?'Mixed':'Female'; gs.style=gsDefaultStyle(nt,gs.gender); gsRenderBuilderFields(); gsRenderMembers(); gsRenderSummary(); gsTouch(); } return; }
+      const cat=t.closest('[data-gcat]'); if(cat){ gs.category=cat.dataset.gcat; gsRenderBuilderFields(); gsTouch(); return; }
+      const gg=t.closest('[data-gg]'); if(gg){ gs.gender=gg.dataset.gg; gs.genderTouched=true; gsRenderBuilderFields(); gsRenderMembers(); gsRenderSummary(); gsTouch(); return; }
+      const un=t.closest('[data-gunit]'); if(un){ gs.unit=un.dataset.gunit; gsRenderBuilderFields(); gsRenderMembers(); gsRenderSummary(); gsTouch(); return; }
+      const cd=t.closest('[data-cloth-del]'); if(cd){ gs.cloth.splice(Number(cd.dataset.clothDel),1); gsRenderCloth(); gsTouch(); return; }
+      const act=t.closest('[data-act]');
+      if(act){
+        const card=act.closest('.grp-member'); const m=card&&gsFindMember(card.dataset.mid); if(!m) return;
+        if(act.dataset.act==='toggle'){ m.open=!m.open; card.classList.toggle('open',m.open); act.setAttribute('aria-expanded',m.open?'true':'false'); }
+        else if(act.dataset.act==='remove'){ card.classList.add('leaving'); setTimeout(()=>{ gs.members=gs.members.filter(x=>x.id!==m.id); card.remove(); if(!gs.members.length) gsRenderMembers(); gsRenumber(); gsRenderSummary(); gsTouch(); },220); }
+        else if(act.dataset.act==='mgender'){ m.gender=act.dataset.g==='Male'?'Male':'Female'; m.open=true; card.outerHTML=gsMemberHTML(m,gs.members.indexOf(m)); gsRenderSummary(); gsTouch(); }
+        return;
+      }
+      if(t.closest('#grpAddMember')){ gsAddMember(true); return; }
+      if(t.closest('#grpPasteToggle')){ const p=$('#grpPaste'); p.hidden=!p.hidden; $('#grpPasteToggle').setAttribute('aria-expanded',p.hidden?'false':'true'); if(!p.hidden) setTimeout(()=>$('#grpPasteText')?.focus(),60); return; }
+      if(t.closest('#grpPasteGo')){ gsPasteNames(); return; }
+      if(t.closest('#grpSave')){ gsSave(); return; }
+      if(t.closest('#grpCancelEdit')){ gsResetBuilder(); gsRenderAll(); return; }
+      if(t.closest('#grpClear')){ if(!gsHasContent(gs)&&!gs.id){ gsResetBuilder(); gsRenderAll(); return; } if(window.confirm('Clear everything in this form?')){ gsResetBuilder(); gsRenderAll(); } return; }
+    });
+    bld.addEventListener('input',e=>{
+      const t=e.target;
+      if(t.id==='grpName'){ gs.name=t.value; const n=$('#grpEditingName'); if(n) n.textContent=gs.name||'group'; }
+      else if(t.id==='grpPrice'){ gs.price=t.value.replace(/[^0-9.]/g,''); if(t.value!==gs.price) t.value=gs.price; gsRenderSummary(); }
+      else if(t.id==='grpNotes') gs.notes=t.value;
+      else if(t.matches('[data-f],[data-meas]')){
+        const card=t.closest('.grp-member'); const m=card&&gsFindMember(card.dataset.mid); if(!m) return;
+        if(t.dataset.meas){ const v=t.value.trim(); if(v) m.m[t.dataset.meas]=v; else delete m.m[t.dataset.meas]; const names=gsMeasureNames(gsMemberGender(gs,m),gs.includeTrouser); const p=card.querySelector('[data-prog]'); if(p) p.textContent=`${names.filter(n=>String(m.m[n]||'').trim()).length}/${names.length}`; gsRenderSummary(); }
+        else { m[t.dataset.f]=t.value; if(t.dataset.f==='name') gsRenderSummary(); }
+      } else return;
+      gsTouch();
+    });
+    bld.addEventListener('change',e=>{
+      const t=e.target;
+      if(t.id==='grpStyle'){ gs.style=t.value; gsRenderSummary(); }
+      else if(t.id==='grpStart') gs.startDate=t.value;
+      else if(t.id==='grpDelivery') gs.deliveryDate=t.value;
+      else if(t.id==='grpFabricWidth'){ gs.fabricWidth=Number(t.value)===60?60:45; gsRenderSummary(); }
+      else if(t.id==='grpTrouser'){ gs.includeTrouser=t.checked; gsRenderMembers(); gsRenderSummary(); }
+      else if(t.id==='grpClothInput'){ gsAddCloth(t.files||[]).finally(()=>{ t.value=''; }); return; }
+      else if(t.matches('[data-mphoto]')){ const card=t.closest('.grp-member'); const f=t.files?.[0]; if(card&&f) gsSetMemberPhoto(card.dataset.mid,f).finally(()=>{ t.value=''; }); return; }
+      else return;
+      gsTouch();
+    });
+    $('#grpSearch')?.addEventListener('input',e=>{ clearTimeout(gsSearchTimer); const v=e.target.value; gsSearchTimer=setTimeout(()=>{ gsQuery=v; gsRenderLibrary(); },150); });
+    $('#grpFilters')?.addEventListener('click',e=>{ const b=e.target.closest('[data-gfilter]'); if(b){ gsFilter=b.dataset.gfilter; gsRenderLibrary(); } });
+    const open=e=>{ const c=e.target.closest('.grp-card'); if(c) gsOpenGroup(c.dataset.gid,c); };
+    $('#grpCards')?.addEventListener('click',open);
+    $('#grpCards')?.addEventListener('keydown',e=>{ if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('grp-card')){ e.preventDefault(); open(e); } });
+    const modal=$('#grpModal');
+    modal?.addEventListener('click',e=>{
+      if(e.target===modal||e.target.closest('[data-grp-close]')){ gsCloseGroup(); return; }
+      const row=e.target.closest('[data-prow]'); if(row){ const p=row.parentElement; const on=!p.classList.contains('open'); p.classList.toggle('open',on); row.setAttribute('aria-expanded',on?'true':'false'); return; }
+      if(e.target.closest('[data-grp-edit]')){ gsStartEdit(gsOpenId); return; }
+      const del=e.target.closest('[data-grp-delete]');
+      if(del){ if(del.classList.contains('confirm')){ gsDelete(gsOpenId); } else { del.classList.add('confirm'); del.textContent='Tap again to delete'; clearTimeout(gsDeleteTimer); gsDeleteTimer=setTimeout(()=>{ del.classList.remove('confirm'); del.textContent='Delete group'; },4000); } }
+    });
+    document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&gsOpenId) gsCloseGroup(); });
+    window.addEventListener('online',()=>{ if(currentUser) gsSyncSoon(); });
+    window.addEventListener('pagehide',()=>{ if(groupsReady) gsWriteDraft(); });
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&groupsReady) gsWriteDraft(); });
+  }
+  gs=gsBlank();
 
   init();
 })();
