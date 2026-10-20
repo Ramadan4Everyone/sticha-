@@ -408,6 +408,11 @@
         Cancel
        </button>
       </div>
+      <div class="addm" id="addModeTabs" role="tablist" aria-label="What are you adding?" data-mode="single">
+       <i class="addm-pill" aria-hidden="true"></i>
+       <button class="addm-tab active" type="button" role="tab" aria-selected="true" data-add-mode="single" id="amSingle"><span class="addm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.4 7-5.4s6.2 1.8 7 5.4"/></svg></span><span class="addm-copy"><b>Single customer</b><small>One person, one record</small></span></button>
+       <button class="addm-tab" type="button" role="tab" aria-selected="false" data-add-mode="group" id="amGroup"><span class="addm-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.2 3-4.9 6-4.9s5.4 1.7 6 4.9"/><circle cx="17" cy="9.5" r="2.5"/><path d="M16.5 14.8c2.6-.2 4.1 1.2 4.5 3.7"/></svg></span><span class="addm-copy"><b>Group order</b><small>Uniform or event dress</small></span><i class="addm-dot" id="amGroupDot" hidden></i></button>
+      </div>
       <div class="form-layout">
        <form class="panel customer-form" id="customerForm">
         <div class="form-section">
@@ -499,7 +504,7 @@
           </div>
          </div>
          <div class="measurement-controls">
-          <label class="measurement-gender"><span>Measuring</span><select id="measurementGender"><option value="Female">Female</option><option value="Male">Male</option></select></label>
+          <label class="measurement-gender" hidden><span>Measuring</span><select id="measurementGender" tabindex="-1" aria-hidden="true"><option value="Female">Female</option><option value="Male">Male</option></select></label><div class="measure-for" id="measureFor" aria-live="polite"><span class="mf-ico" aria-hidden="true">♀</span><div><small>Measuring for</small><b id="measureForText">Female</b></div></div>
           <label class="measurement-fabric"><span>Fabric width</span><select id="fabricWidth"><option value="45">45 inches</option><option value="60">60 inches</option></select></label>
           <label class="trouser-toggle"><input type="checkbox" id="includeTrouser"><span>Also measure trouser</span></label>
          </div>
@@ -604,6 +609,127 @@
         </div>
        </div>
       </div>
+     <div class="grp-wrap">
+      <!-- v10: group orders -->
+      <div class="grp-studio" id="groupStudio">
+       <section class="grp-hero">
+        <div class="grp-hero-copy">
+         <p class="eyebrow">GROUP ORDERS</p>
+         <h2>One cloth, many people. Added in minutes.</h2>
+         <p>Made for school uniforms, aso-ebi, church groups and family events. Add everyone once, keep every measurement, and find the whole group again anytime.</p>
+         <div class="grp-hero-stats">
+          <div><b id="grpStatGroups">0</b><span>Groups</span></div>
+          <div><b id="grpStatPeople">0</b><span>People</span></div>
+          <div><b id="grpStatUniform">0</b><span>Uniforms</span></div>
+         </div>
+        </div>
+        <div class="grp-hero-art" aria-hidden="true">
+         <svg viewBox="0 0 220 180" fill="none">
+          <circle class="ga-ring" cx="110" cy="90" r="66" stroke="currentColor" stroke-width="2" stroke-dasharray="4 7" stroke-linecap="round"/>
+          <g class="ga-sw ga-sw1"><rect x="26" y="34" width="56" height="56" rx="14" fill="currentColor" opacity=".16"/><path d="M26 62h56M54 34v56" stroke="currentColor" stroke-width="2" opacity=".5"/></g>
+          <g class="ga-sw ga-sw2"><rect x="128" y="22" width="60" height="48" rx="14" fill="currentColor" opacity=".24"/><circle cx="158" cy="46" r="9" stroke="currentColor" stroke-width="2" opacity=".6"/></g>
+          <g class="ga-sw ga-sw3"><rect x="112" y="98" width="64" height="58" rx="16" fill="currentColor" opacity=".13"/><path d="M122 146l18-30 18 30z" stroke="currentColor" stroke-width="2" opacity=".55" stroke-linejoin="round"/></g>
+          <g class="ga-sw ga-sw4"><rect x="38" y="106" width="52" height="46" rx="13" fill="currentColor" opacity=".2"/><path d="M48 129h32" stroke="currentColor" stroke-width="2" stroke-dasharray="3 5" opacity=".7"/></g>
+         </svg>
+        </div>
+       </section>
+
+       <div class="panel grp-builder" id="groupBuilder">
+        <div class="grp-editing" id="grpEditing" hidden>
+         <span>Editing <b id="grpEditingName">group</b></span>
+         <button class="ghost-btn" id="grpCancelEdit" type="button">Cancel edit</button>
+        </div>
+
+        <div class="grp-section">
+         <div class="section-title"><span>01</span><div><h3>What is it for?</h3><p>This decides which details we ask for.</p></div></div>
+         <div class="grp-type" role="radiogroup" aria-label="Group type">
+          <button class="grp-type-card active" type="button" role="radio" aria-checked="true" data-gtype="uniform">
+           <span class="grp-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 3 6l2 4 2-1v12h10V9l2 1 2-4-5-3c-.5 1.5-1.8 2.3-4 2.3S8.5 4.5 8 3z"/></svg></span>
+           <span><b>Uniform</b><small>School, church, office or club. Name, class, measurements and photo.</small></span>
+          </button>
+          <button class="grp-type-card" type="button" role="radio" aria-checked="false" data-gtype="dress">
+           <span class="grp-type-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-.8 5.5L19 21H5l4.8-12.5z"/><path d="M9.8 8.5h4.4"/></svg></span>
+           <span><b>Dress / Event</b><small>Aso-ebi, wedding party or family cloth. Name and measurements.</small></span>
+          </button>
+         </div>
+        </div>
+
+        <div class="grp-section">
+         <div class="section-title"><span>02</span><div><h3>Group details</h3><p>Pick the gender once and the styles follow.</p></div></div>
+         <div class="grp-grid">
+          <label class="grp-wide"><span id="grpNameLabel">School / group name</span><input id="grpName" maxlength="80" autocomplete="off" placeholder="e.g. Greenfield College, JSS 2"></label>
+          <div class="grp-wide"><span class="grp-label">Category</span><div class="grp-chips" id="grpCats" role="radiogroup" aria-label="Category"></div></div>
+          <div class="grp-wide"><span class="grp-label">Who is it for?</span>
+           <div class="grp-seg" id="grpGender" role="radiogroup" aria-label="Who is it for" data-n="3" data-i="2">
+            <i class="grp-seg-pill" aria-hidden="true"></i>
+            <button type="button" role="radio" data-gg="Female">Female</button>
+            <button type="button" role="radio" data-gg="Male">Male</button>
+            <button type="button" role="radio" data-gg="Mixed">Mixed</button>
+           </div>
+           <small class="grp-hint" id="grpGenderHint"></small>
+          </div>
+          <label class="grp-wide"><span>Style / garment</span><select id="grpStyle"></select></label>
+          <label><span>Starting date</span><input type="date" id="grpStart"></label>
+          <label><span>Delivery date</span><input type="date" id="grpDelivery"></label>
+          <label><span>Fabric width</span><select id="grpFabricWidth"><option value="45">45 inches</option><option value="60">60 inches</option></select></label>
+          <label><span>Price per person (₦), optional</span><input id="grpPrice" inputmode="numeric" maxlength="12" placeholder="e.g. 8000"></label>
+         </div>
+        </div>
+
+        <div class="grp-section">
+         <div class="section-title"><span>03</span><div><h3>Cloth photos</h3><p>Photograph the fabric, the sample or the finished style. It stays with this group.</p></div></div>
+         <label class="grp-drop" id="grpDrop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.4"/></svg>
+          <b>Add cloth photos</b><small>Up to 6 photos</small>
+          <input type="file" accept="image/*" multiple id="grpClothInput">
+         </label>
+         <div class="grp-cloth" id="grpCloth"></div>
+        </div>
+
+        <div class="grp-section">
+         <div class="section-title"><span>04</span><div><h3>People <em class="grp-count" id="grpCount">0</em></h3><p id="grpPeopleHint">Add each person once. Tap Measurements to fill them in.</p></div></div>
+         <div class="grp-toolbar">
+          <div class="grp-uswitch" role="group" aria-label="Measurement unit">
+           <button class="grp-ubtn active" data-gunit="in" type="button">Inches (in)</button>
+           <button class="grp-ubtn" data-gunit="cm" type="button">Centimetres (cm)</button>
+          </div>
+          <label class="grp-check"><input type="checkbox" id="grpTrouser"><span>Also measure trouser</span></label>
+         </div>
+         <div class="grp-members" id="grpMembers"></div>
+         <div class="grp-add-row">
+          <button class="primary-btn grp-add" id="grpAddMember" type="button">＋ Add person</button>
+          <button class="ghost-btn" id="grpPasteToggle" type="button" aria-expanded="false">Paste a list of names</button>
+         </div>
+         <div class="grp-paste" id="grpPaste" hidden>
+          <label><span id="grpPasteLabel">One person per line</span><textarea id="grpPasteText" rows="5" placeholder="Adebayo Tunde, JSS 2A&#10;Chioma Okeke, JSS 2B"></textarea></label>
+          <button class="primary-btn" id="grpPasteGo" type="button">Add these names</button>
+         </div>
+        </div>
+
+        <div class="grp-section">
+         <div class="section-title"><span>05</span><div><h3>Notes</h3><p>Anything everyone in this group should get.</p></div></div>
+         <textarea id="grpNotes" rows="3" maxlength="600" placeholder="Fabric colour, badge position, fitting date..."></textarea>
+        </div>
+
+        <div class="grp-footer">
+         <div class="grp-summary" id="grpSummary" aria-live="polite"></div>
+         <div class="grp-actions">
+          <button class="primary-btn full save-btn" id="grpSave" type="button">Save group <span>→</span></button>
+          <button class="ghost-btn" id="grpClear" type="button">Clear form</button>
+         </div>
+        </div>
+       </div>
+
+       <section class="panel grp-library" id="groupLibrary">
+        <div class="panel-head">
+         <div><h3>Saved groups</h3><p>Every uniform and event order, organised by category.</p></div>
+         <input type="search" id="grpSearch" placeholder="Search groups or people" aria-label="Search groups or people">
+        </div>
+        <div class="grp-filters" id="grpFilters"></div>
+        <div class="grp-cards" id="grpCards"></div>
+       </section>
+      </div>
+     </div>
      </section>
      <!-- PROFILE -->
      <section class="view" id="view-profile">
@@ -979,6 +1105,9 @@
      Your customer was added successfully.
     </small>
    </div>
+  </div>
+  <div class="grp-modal" id="grpModal" role="dialog" aria-modal="true" aria-labelledby="grpModalTitle" aria-hidden="true">
+   <div class="grp-sheet" id="grpSheet"></div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
